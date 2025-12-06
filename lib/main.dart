@@ -1,7 +1,10 @@
 import 'dart:async';
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'dart:ui' as ui;
 
 void main() {
   runApp(const MyApp());
@@ -46,11 +49,34 @@ class _MyHomePageState extends State<MyHomePage> {
   );
 
   final Set<Marker> _markers = {};
+  // Source - https://stackoverflow.com/a/56534916
+  // Posted by Miguel Ruivo, modified by community. See post 'Timeline' for change history
+  // Retrieved 2025-12-06, License - CC BY-SA 4.0
 
-  @override
-  void initState() {
+  Future<Uint8List> getBytesFromAsset(String path, int width) async {
+    ByteData data = await rootBundle.load(path);
+    ui.Codec codec = await ui.instantiateImageCodec(
+      data.buffer.asUint8List(),
+      targetWidth: width,
+    );
+    ui.FrameInfo fi = await codec.getNextFrame();
+    return (await fi.image.toByteData(
+      format: ui.ImageByteFormat.png,
+    ))!.buffer.asUint8List();
+  }
+
+  loadMarker() async {
+    final Uint8List markerIcon = await getBytesFromAsset(
+      'assets/images/store.png',
+      50,
+    );
+    final Marker marker = Marker(
+      icon: BitmapDescriptor.bytes(markerIcon),
+      markerId: const MarkerId('1'),
+    );
     _markers.add(
       Marker(
+        icon: BitmapDescriptor.bytes(markerIcon),
         markerId: const MarkerId('1'),
         position: const LatLng(27.1927299, 33.4520471),
         infoWindow: const InfoWindow(
@@ -61,25 +87,30 @@ class _MyHomePageState extends State<MyHomePage> {
         onDragEnd: (value) => print('Marker 1 Drag Ended at $value'),
       ),
     );
-    _markers.add(
-      Marker(
-        markerId: const MarkerId('2'),
-        position: const LatLng(29.1927299, 32.4520471),
-        infoWindow: const InfoWindow(
-          title: 'Marker 2',
-          snippet: 'This is marker 1',
-        ),
-        draggable: true,
-        onTap: () {
-          print('Marker 2 Tapped');
-        },
-        onDrag: (newPosition) {
-          // print('Marker 2 Dragged to $newPosition');
-        },
-        onDragEnd: (value) => print('Marker 2 Drag Ended at $value'),
-      ),
-    );
+    // _markers.add(
+    //   Marker(
+    //     markerId: const MarkerId('2'),
+    //     position: const LatLng(29.1927299, 32.4520471),
+    //     infoWindow: const InfoWindow(
+    //       title: 'Marker 2',
+    //       snippet: 'This is marker 1',
+    //     ),
+    //     draggable: true,
+    //     onTap: () {
+    //       print('Marker 2 Tapped');
+    //     },
+    //     onDrag: (newPosition) {
+    //       // print('Marker 2 Dragged to $newPosition');
+    //     },
+    //     onDragEnd: (value) => print('Marker 2 Drag Ended at $value'),
+    //   ),
+    // );
+    setState(() {});
+  }
 
+  @override
+  void initState() {
+    loadMarker();
     super.initState();
   }
 
