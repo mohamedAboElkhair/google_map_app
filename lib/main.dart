@@ -1,10 +1,11 @@
 import 'dart:async';
+import 'dart:developer';
 import 'dart:typed_data';
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'dart:ui' as ui;
+import 'package:geolocator/geolocator.dart';
 
 void main() {
   runApp(const MyApp());
@@ -108,9 +109,96 @@ class _MyHomePageState extends State<MyHomePage> {
     setState(() {});
   }
 
+  Future<Position> _determinePosition() async {
+    bool serviceEnabled;
+    LocationPermission permission;
+
+    // Test if location services are enabled.
+    serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    if (!serviceEnabled) {
+      // Location services are not enabled don't continue
+      // accessing the position and request users of the
+      // App to enable the location services.
+      return Future.error('Location services are disabled.');
+    }
+
+    permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
+      if (permission == LocationPermission.denied) {
+        // Permissions are denied, next time you could try
+        // requesting permissions again (this is also where
+        // Android's shouldShowRequestPermissionRationale
+        // returned true. According to Android guidelines
+        // your App should show an explanatory UI now.
+        return Future.error('Location permissions are denied');
+      }
+    }
+
+    if (permission == LocationPermission.deniedForever) {
+      // Permissions are denied forever, handle appropriately.
+      return Future.error(
+        'Location permissions are permanently denied, we cannot request permissions.',
+      );
+    }
+
+    // When we reach here, permissions are granted and we can
+    // continue accessing the position of the device.
+    return await Geolocator.getCurrentPosition();
+  }
+
+  getCurrentLocation() async {
+    try {
+      Position position = await _determinePosition();
+      final GoogleMapController controller = await _controller.future;
+      controller.animateCamera(
+        CameraUpdate.newCameraPosition(
+          CameraPosition(
+            target: LatLng(position.latitude, position.longitude),
+            zoom: 1,
+          ),
+        ),
+      );
+    } catch (e) {
+      print('Error getting location: $e');
+    }
+  }
+
+  listenToUserLocation() {
+    StreamSubscription<Position> positionStream =
+        Geolocator.getPositionStream(
+          locationSettings: const LocationSettings(
+            accuracy: LocationAccuracy.high,
+            distanceFilter: 10,
+          ),
+        ).listen((Position? position) {
+          log(
+            position == null
+                ? 'Unknown'
+                : '${position.latitude.toString()}, ${position.longitude.toString()}',
+          );
+        });
+  }
+
+  calculateDistanceBetweenTwoPoints(LatLng point1, LatLng point2) {
+    double distanceInMeters = Geolocator.distanceBetween(
+      point1.latitude,
+      point1.longitude,
+      point2.latitude,
+      point2.longitude,
+    );
+    log('Distance: $distanceInMeters meters');
+  }
+
   @override
   void initState() {
     loadMarker();
+    calculateDistanceBetweenTwoPoints(
+      const LatLng(27.1927299, 33.4520471),
+      const LatLng(29.1927299, 32.4520471),
+    );
+    getCurrentLocation();
+    listenToUserLocation();
     super.initState();
   }
 
@@ -126,15 +214,21 @@ class _MyHomePageState extends State<MyHomePage> {
         markers: _markers,
       ),
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: _goToTheLake,
+        onPressed: () {
+          _animateToPosition(_kLake.target);
+        },
         label: const Text('To the lake!'),
         icon: const Icon(Icons.directions_boat),
       ),
     );
   }
 
-  Future<void> _goToTheLake() async {
+  Future<void> _animateToPosition(LatLng position) async {
     final GoogleMapController controller = await _controller.future;
-    await controller.animateCamera(CameraUpdate.newCameraPosition(_kLake));
+    await controller.animateCamera(
+      CameraUpdate.newCameraPosition(
+        CameraPosition(target: position, zoom: 14.0),
+      ),
+    );
   }
 }
