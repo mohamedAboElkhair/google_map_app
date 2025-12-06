@@ -1,13 +1,17 @@
 import 'dart:async';
 import 'dart:developer';
 import 'dart:typed_data';
+import 'dart:io' show Platform;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/foundation.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'dart:ui' as ui;
 import 'package:geolocator/geolocator.dart';
+import 'package:geocoding/geocoding.dart';
 
 void main() {
+  WidgetsFlutterBinding.ensureInitialized();
   runApp(const MyApp());
 }
 
@@ -50,6 +54,9 @@ class _MyHomePageState extends State<MyHomePage> {
   );
 
   final Set<Marker> _markers = {};
+  StreamSubscription<Position>? _positionSubscription;
+  bool get _geocodingSupported =>
+      kIsWeb || Platform.isAndroid || Platform.isIOS || Platform.isMacOS;
   // Source - https://stackoverflow.com/a/56534916
   // Posted by Miguel Ruivo, modified by community. See post 'Timeline' for change history
   // Retrieved 2025-12-06, License - CC BY-SA 4.0
@@ -70,10 +77,6 @@ class _MyHomePageState extends State<MyHomePage> {
     final Uint8List markerIcon = await getBytesFromAsset(
       'assets/images/store.png',
       50,
-    );
-    final Marker marker = Marker(
-      icon: BitmapDescriptor.bytes(markerIcon),
-      markerId: const MarkerId('1'),
     );
     _markers.add(
       Marker(
@@ -165,7 +168,7 @@ class _MyHomePageState extends State<MyHomePage> {
   }
 
   listenToUserLocation() {
-    StreamSubscription<Position> positionStream =
+    _positionSubscription =
         Geolocator.getPositionStream(
           locationSettings: const LocationSettings(
             accuracy: LocationAccuracy.high,
@@ -190,9 +193,50 @@ class _MyHomePageState extends State<MyHomePage> {
     log('Distance: $distanceInMeters meters');
   }
 
+  getLocationFromAddress(String address) async {
+    if (!_geocodingSupported) {
+      log('Geocoding not supported on this platform.');
+      return;
+    }
+    try {
+      List<Location> locations = await locationFromAddress(address);
+      for (var location in locations) {
+        log('Location: ${location.latitude}, ${location.longitude}');
+      }
+    } catch (e) {
+      log('Error: $e');
+    }
+  }
+
+  getAddressFromLocation(double latitude, double longitude) async {
+    if (!_geocodingSupported) {
+      log('Geocoding not supported on this platform.');
+      return;
+    }
+    try {
+      List<Placemark> placemarks = await placemarkFromCoordinates(
+        latitude,
+        longitude,
+      );
+      for (var placemark in placemarks) {
+        log(
+          'Address: ${placemark.street}, ${placemark.locality}, ${placemark.country}',
+        );
+      }
+    } catch (e) {
+      log('Error: $e');
+    }
+  }
+
   @override
   void initState() {
     loadMarker();
+    if (_geocodingSupported) {
+      getLocationFromAddress("Gronausestraat 710, Enschede");
+      getAddressFromLocation(52.2165157, 6.9437819);
+    } else {
+      log('Skipping geocoding calls: unsupported platform.');
+    }
     calculateDistanceBetweenTwoPoints(
       const LatLng(27.1927299, 33.4520471),
       const LatLng(29.1927299, 32.4520471),
@@ -200,6 +244,12 @@ class _MyHomePageState extends State<MyHomePage> {
     getCurrentLocation();
     listenToUserLocation();
     super.initState();
+  }
+
+  @override
+  void dispose() {
+    _positionSubscription?.cancel();
+    super.dispose();
   }
 
   @override
