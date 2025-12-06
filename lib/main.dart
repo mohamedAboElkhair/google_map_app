@@ -80,7 +80,7 @@ class _MyHomePageState extends State<MyHomePage> {
     );
     _markers.add(
       Marker(
-        icon: BitmapDescriptor.bytes(markerIcon),
+        //   icon: BitmapDescriptor.bytes(markerIcon),
         markerId: const MarkerId('1'),
         position: const LatLng(27.1927299, 33.4520471),
         infoWindow: const InfoWindow(
