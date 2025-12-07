@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:developer';
-import 'dart:typed_data';
 import 'dart:io' show Platform;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -9,6 +8,7 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'dart:ui' as ui;
 import 'package:geolocator/geolocator.dart';
 import 'package:geocoding/geocoding.dart';
+import 'package:custom_info_window/custom_info_window.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -45,6 +45,8 @@ class _MyHomePageState extends State<MyHomePage> {
     target: LatLng(27.1927299, 33.4520471),
     zoom: 3,
   );
+  CustomInfoWindowController _customInfoWindowController =
+      CustomInfoWindowController();
 
   static const CameraPosition _kLake = CameraPosition(
     bearing: 192.8334901395799,
@@ -80,13 +82,47 @@ class _MyHomePageState extends State<MyHomePage> {
     );
     _markers.add(
       Marker(
+        onTap: () {
+          _customInfoWindowController.addInfoWindow!(
+            Column(
+              children: [
+                Expanded(
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: Colors.blue,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    width: double.infinity,
+                    height: double.infinity,
+                    child: Padding(
+                      padding: const EdgeInsets.all(8.0),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.account_circle,
+                            color: Colors.white,
+                            size: 30,
+                          ),
+                          SizedBox(width: 8.0),
+                          Text("I am here"),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            LatLng(27.1927299, 33.4520471),
+          );
+        },
         //   icon: BitmapDescriptor.bytes(markerIcon),
         markerId: const MarkerId('1'),
         position: const LatLng(27.1927299, 33.4520471),
-        infoWindow: const InfoWindow(
-          title: 'Marker 1',
-          snippet: 'This is marker 1',
-        ),
+        // infoWindow: const InfoWindow(
+        //   title: 'Marker 1',
+        //   snippet: 'This is marker 1',
+        // ),
         draggable: true,
         onDragEnd: (value) => print('Marker 1 Drag Ended at $value'),
       ),
@@ -248,20 +284,39 @@ class _MyHomePageState extends State<MyHomePage> {
 
   @override
   void dispose() {
-    _positionSubscription?.cancel();
+    // _positionSubscription?.cancel();
+    _customInfoWindowController.dispose();
+
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: GoogleMap(
-        mapType: MapType.normal,
-        initialCameraPosition: _intialCameraPosition,
-        onMapCreated: (GoogleMapController controller) {
-          _controller.complete(controller);
-        },
-        markers: _markers,
+      body: Stack(
+        children: [
+          GoogleMap(
+            mapType: MapType.normal,
+            initialCameraPosition: _intialCameraPosition,
+            onMapCreated: (GoogleMapController controller) {
+              _controller.complete(controller);
+              _customInfoWindowController.googleMapController = controller;
+            },
+            onTap: (LatLng position) {
+              _customInfoWindowController.hideInfoWindow!();
+            },
+            onCameraMove: (position) {
+              _customInfoWindowController.onCameraMove!();
+            },
+            markers: _markers,
+          ),
+          CustomInfoWindow(
+            controller: _customInfoWindowController,
+            height: 75,
+            width: 150,
+            offset: 50,
+          ),
+        ],
       ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () {
